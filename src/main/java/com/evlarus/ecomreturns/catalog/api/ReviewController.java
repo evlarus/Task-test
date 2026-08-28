@@ -6,8 +6,7 @@ import com.evlarus.ecomreturns.catalog.infrastructure.ProductRepository;
 import com.evlarus.ecomreturns.catalog.infrastructure.ReviewRepository;
 import com.evlarus.ecomreturns.common.exception.ResourceNotFoundException;
 import com.evlarus.ecomreturns.common.web.PageResponse;
-import com.evlarus.ecomreturns.user.domain.User;
-import com.evlarus.ecomreturns.user.infrastructure.UserRepository;
+import com.evlarus.ecomreturns.user.CurrentUserService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -27,13 +26,13 @@ public class ReviewController {
 
     private final ReviewRepository reviewRepository;
     private final ProductRepository productRepository;
-    private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
 
     public ReviewController(ReviewRepository reviewRepository, ProductRepository productRepository,
-                             UserRepository userRepository) {
+                             CurrentUserService currentUserService) {
         this.reviewRepository = reviewRepository;
         this.productRepository = productRepository;
-        this.userRepository = userRepository;
+        this.currentUserService = currentUserService;
     }
 
     @GetMapping
@@ -48,12 +47,10 @@ public class ReviewController {
                                                   Authentication authentication) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Товар", productId));
-        User user = userRepository.findByEmail(authentication.getName())
-                .orElseThrow(() -> new ResourceNotFoundException("Пользователь", authentication.getName()));
 
         Review review = new Review();
         review.setProduct(product);
-        review.setUser(user);
+        review.setUser(currentUserService.resolve(authentication));
         review.setRating(request.rating());
         review.setComment(request.comment());
         reviewRepository.save(review);
