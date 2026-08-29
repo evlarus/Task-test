@@ -8,5 +8,6 @@
     <include file="db/changelog/changes/001-create-user-tables.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/002-create-catalog-tables.xml" relativeToChangelogFile="false"/>
     <include file="db/changelog/changes/003-create-cart-order-tables.xml" relativeToChangelogFile="false"/>
+    <include file="db/changelog/changes/004-create-payment-tables.xml" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>
