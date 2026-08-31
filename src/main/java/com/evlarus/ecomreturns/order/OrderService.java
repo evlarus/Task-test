@@ -5,6 +5,7 @@ import com.evlarus.ecomreturns.cart.domain.CartItem;
 import com.evlarus.ecomreturns.cart.CartService;
 import com.evlarus.ecomreturns.common.exception.BusinessRuleViolationException;
 import com.evlarus.ecomreturns.common.exception.ResourceNotFoundException;
+import com.evlarus.ecomreturns.notification.event.OrderStatusChangedEvent;
 import com.evlarus.ecomreturns.order.domain.Order;
 import com.evlarus.ecomreturns.order.domain.OrderItem;
 import com.evlarus.ecomreturns.order.domain.OrderStatus;
@@ -15,6 +16,7 @@ import com.evlarus.ecomreturns.user.infrastructure.AddressRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,13 +27,16 @@ public class OrderService {
     private final AddressRepository addressRepository;
     private final CartService cartService;
     private final OrderStatusTransitionValidator statusTransitionValidator;
+    private final ApplicationEventPublisher eventPublisher;
 
     public OrderService(OrderRepository orderRepository, AddressRepository addressRepository,
-                         CartService cartService, OrderStatusTransitionValidator statusTransitionValidator) {
+                         CartService cartService, OrderStatusTransitionValidator statusTransitionValidator,
+                         ApplicationEventPublisher eventPublisher) {
         this.orderRepository = orderRepository;
         this.addressRepository = addressRepository;
         this.cartService = cartService;
         this.statusTransitionValidator = statusTransitionValidator;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -87,9 +92,13 @@ public class OrderService {
     public Order changeStatus(Long orderId, OrderStatus newStatus) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Заказ", orderId));
-        statusTransitionValidator.validate(order.getStatus(), newStatus);
+        OrderStatus oldStatus = order.getStatus();
+        statusTransitionValidator.validate(oldStatus, newStatus);
         order.setStatus(newStatus);
-        return orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderStatusChangedEvent(saved.getId(), saved.getUser().getEmail(),
+                oldStatus, newStatus));
+        return saved;
     }
 
     @Transactional
@@ -99,8 +108,12 @@ public class OrderService {
         if (!order.getUser().getId().equals(user.getId())) {
             throw new ResourceNotFoundException("Заказ", orderId);
         }
-        statusTransitionValidator.validate(order.getStatus(), OrderStatus.CANCELLED);
+        OrderStatus oldStatus = order.getStatus();
+        statusTransitionValidator.validate(oldStatus, OrderStatus.CANCELLED);
         order.setStatus(OrderStatus.CANCELLED);
-        return orderRepository.save(order);
+        Order saved = orderRepository.save(order);
+        eventPublisher.publishEvent(new OrderStatusChangedEvent(saved.getId(), saved.getUser().getEmail(),
+                oldStatus, OrderStatus.CANCELLED));
+        return saved;
     }
 }

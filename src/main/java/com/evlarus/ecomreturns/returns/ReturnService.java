@@ -2,6 +2,7 @@ package com.evlarus.ecomreturns.returns;
 
 import com.evlarus.ecomreturns.common.exception.BusinessRuleViolationException;
 import com.evlarus.ecomreturns.common.exception.ResourceNotFoundException;
+import com.evlarus.ecomreturns.notification.event.ReturnStatusChangedEvent;
 import com.evlarus.ecomreturns.order.domain.Order;
 import com.evlarus.ecomreturns.order.domain.OrderItem;
 import com.evlarus.ecomreturns.order.domain.OrderStatus;
@@ -16,6 +17,7 @@ import com.evlarus.ecomreturns.user.domain.User;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Map;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,14 +28,17 @@ public class ReturnService {
     private final OrderRepository orderRepository;
     private final ReturnStatusTransitionValidator statusTransitionValidator;
     private final RefundCalculationStrategyFactory refundStrategyFactory;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ReturnService(ReturnRequestRepository returnRequestRepository, OrderRepository orderRepository,
                           ReturnStatusTransitionValidator statusTransitionValidator,
-                          RefundCalculationStrategyFactory refundStrategyFactory) {
+                          RefundCalculationStrategyFactory refundStrategyFactory,
+                          ApplicationEventPublisher eventPublisher) {
         this.returnRequestRepository = returnRequestRepository;
         this.orderRepository = orderRepository;
         this.statusTransitionValidator = statusTransitionValidator;
         this.refundStrategyFactory = refundStrategyFactory;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -114,8 +119,12 @@ public class ReturnService {
     private ReturnRequest transition(Long returnRequestId, ReturnStatus newStatus) {
         ReturnRequest returnRequest = returnRequestRepository.findById(returnRequestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Запрос на возврат", returnRequestId));
-        statusTransitionValidator.validate(returnRequest.getStatus(), newStatus);
+        ReturnStatus oldStatus = returnRequest.getStatus();
+        statusTransitionValidator.validate(oldStatus, newStatus);
         returnRequest.setStatus(newStatus);
-        return returnRequestRepository.save(returnRequest);
+        ReturnRequest saved = returnRequestRepository.save(returnRequest);
+        eventPublisher.publishEvent(new ReturnStatusChangedEvent(saved.getId(), saved.getUser().getEmail(),
+                oldStatus, newStatus));
+        return saved;
     }
 }
