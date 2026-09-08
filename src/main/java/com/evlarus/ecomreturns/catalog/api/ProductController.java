@@ -17,6 +17,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,6 +38,7 @@ public class ProductController {
         this.categoryRepository = categoryRepository;
     }
 
+    @Transactional(readOnly = true)
     @GetMapping
     public PageResponse<ProductResponse> list(
             @RequestParam(required = false) Long category,
@@ -53,6 +55,7 @@ public class ProductController {
         return PageResponse.of(productRepository.findAll(spec, pageable), ProductResponse::from);
     }
 
+    @Transactional(readOnly = true)
     @GetMapping("/{id}")
     public ProductResponse get(@PathVariable Long id) {
         return ProductResponse.from(productRepository.findById(id)
